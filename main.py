@@ -6,6 +6,8 @@ def main(page: ft.Page):
     # Configurações básicas da página
     page.bgcolor = ft.colors.BLACK
     page.padding = ft.padding.all(30)
+    page.window_width = 450
+    page.window_height = 900
     page.title = 'Habitus'
 
     # Banco de dados
@@ -14,7 +16,7 @@ def main(page: ft.Page):
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS habitus (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
+            habito TEXT NOT NULL,
             feito BOOLEAN DEFAULT 0,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -36,49 +38,50 @@ def main(page: ft.Page):
         size=50, 
         color=ft.colors.WHITE,
         weight=ft.FontWeight.BOLD
+        
     )
 
     # Funções de gerenciamento de hábitos
-    def load_habits():
-        cursor.execute('SELECT id, titulo, feito FROM habitus')
-        return [{'id': row[0], 'titulo': row[1], 'feito': bool(row[2])} for row in cursor.fetchall()]
+    def carregar_habitos():
+        cursor.execute('SELECT id, habito, feito FROM habitus')
+        return [{'id': row[0], 'habito': row[1], 'feito': bool(row[2])} for row in cursor.fetchall()]
 
-    def delete_habit(e, habit_title):
-        cursor.execute('DELETE FROM habitus WHERE titulo = ?', (habit_title,))
+    def deletar_habito(e, titulo_habito):
+        cursor.execute('DELETE FROM habitus WHERE habito = ?', (titulo_habito,))
         conn.commit()
         
-        habits_list = load_habits()
-        habits.content.controls = [create_habit_row(hl) for hl in habits_list]
-        habits.update()
-        update_progress()
+        lista_habitos = carregar_habitos()
+        habitos.content.controls = [criar_linha_habito(h) for h in lista_habitos]
+        habitos.update()
+        atualizar_progresso()
 
-    def create_habit_row(habit):
+    def criar_linha_habito(habito):
         return ft.Row(
             controls=[
                 ft.Checkbox(
-                    label=habit['titulo'],
-                    value=habit['feito'],
-                    on_change=change_habit,
+                    label=habito['habito'],
+                    value=habito['feito'],
+                    on_change=mudar_habito,
                     expand=True
                 ),
                 ft.IconButton(
                     icon=ft.icons.DELETE_OUTLINE,
                     icon_color=ft.colors.RED_400,
                     tooltip="Remover habito",
-                    on_click=lambda e: delete_habit(e, habit['titulo'])  
+                    on_click=lambda e: deletar_habito(e, habito['habito'])  
                 )
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
 
-    def update_progress():
+    def atualizar_progresso():
         cursor.execute('SELECT COUNT(*) FROM habitus WHERE feito = 1')
-        done_count = cursor.fetchone()[0]
+        quantidade_feitos = cursor.fetchone()[0]
         cursor.execute('SELECT COUNT(*) FROM habitus')
-        total_count = cursor.fetchone()[0]
+        quantidade_total = cursor.fetchone()[0]
         
-        if total_count > 0:
-            total = done_count / total_count
+        if quantidade_total > 0:
+            total = quantidade_feitos / quantidade_total
             progress_bar.value = total
             progress_text.value = f'{total:.0%}'
         else:
@@ -87,30 +90,30 @@ def main(page: ft.Page):
         
         page.update()
 
-    def change_habit(e):
-        cursor.execute('UPDATE habitus SET feito = ? WHERE titulo = ?', 
+    def mudar_habito(e):
+        cursor.execute('UPDATE habitus SET feito = ? WHERE habito = ?', 
                       (e.control.value, e.control.label))
         conn.commit()
-        update_progress()
+        atualizar_progresso()
 
-    def add_habit(e):
+    def adicionar_habito(e):
         if not e.control.value:
             return
             
-        cursor.execute('INSERT INTO habitus (titulo, feito) VALUES (?, ?)', 
+        cursor.execute('INSERT INTO habitus (habito, feito) VALUES (?, ?)', 
                       (e.control.value, False))
         conn.commit()
         
-        habits_list = load_habits()
-        habits.content.controls = [create_habit_row(hl) for hl in habits_list]
+        lista_habitos = carregar_habitos()
+        habitos.content.controls = [criar_linha_habito(h) for h in lista_habitos]
         
         e.control.value = ''
-        habits.update()
+        habitos.update()
         e.control.update()
-        update_progress()
+        atualizar_progresso()
 
     # Componentes da interface
-    habits = ft.Container(
+    habitos = ft.Container(
         expand=True,
         padding=ft.padding.all(30),
         bgcolor=ft.colors.GREY_900,
@@ -120,7 +123,7 @@ def main(page: ft.Page):
             expand=True,
             scroll=ft.ScrollMode.AUTO,
             spacing=20,
-            controls=[create_habit_row(hl) for hl in load_habits()]
+            controls=[criar_linha_habito(h) for h in carregar_habitos()]
         ),
     )
 
@@ -155,12 +158,12 @@ def main(page: ft.Page):
                 size=16, 
                 color=ft.colors.WHITE
             ),
-            habits,
+            habitos,
             ft.Text(value='Adicionar novo hábito', size=20, color=ft.colors.WHITE),
             ft.TextField(
                 hint_text='Escreva um hábito...',
                 border=ft.InputBorder.UNDERLINE,
-                on_submit=add_habit,
+                on_submit=adicionar_habito,
                 color=ft.colors.WHITE,
             )
         ]
@@ -168,7 +171,7 @@ def main(page: ft.Page):
 
     # Inicialização e limpeza
     page.add(layout)
-    update_progress()
+    atualizar_progresso()
     page.on_close = lambda: conn.close()
 
 if __name__ == '__main__':
